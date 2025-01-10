@@ -11,10 +11,12 @@ interface UploadModalProps {
 export function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [uploadType, setUploadType] = useState<'file' | 'youtube'>('file');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -28,24 +30,73 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
     }
   };
 
+  const getYoutubeVideoId = (url: string) => {
+    const regex = /^.*(youtu\.be\/|v\/|shorts\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regex);
+    return match && match[2].length === 11 ? match[2] : null;
+  };
+
+  const fetchYoutubeVideoInfo = async (videoId: string) => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${import.meta.env.VITE_YOUTUBE_API_KEY}`
+      );
+      const data = await response.json();
+      
+      if (data.items && data.items.length > 0) {
+        const videoInfo = data.items[0].snippet;
+        setTitle(videoInfo.title);
+        setDescription(videoInfo.description);
+      }
+    } catch (error) {
+      console.error('Error fetching YouTube video info:', error);
+      setError('Failed to fetch video information');
+    }
+  };
+
+  const validateYoutubeUrl = (url: string) => {
+    const videoId = getYoutubeVideoId(url);
+    return videoId !== null;
+  };
+
+  const handleYoutubeUrlChange = async (url: string) => {
+    setYoutubeUrl(url);
+    if (validateYoutubeUrl(url)) {
+      const videoId = getYoutubeVideoId(url);
+      if (videoId) {
+        await fetchYoutubeVideoInfo(videoId);
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !user) return;
+    if (!user || (uploadType === 'file' && !file) || (uploadType === 'youtube' && !youtubeUrl)) return;
 
     setUploading(true);
     setError('');
 
     try {
-      // Upload video to storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      let videoUrl = '';
 
-      const { error: uploadError, data } = await supabase.storage
-        .from('videos')
-        .upload(filePath, file);
+      if (uploadType === 'file' && file) {
+        // Upload video to storage
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${user.id}/${fileName}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError, data } = await supabase.storage
+          .from('videos')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+        videoUrl = data.path;
+      } else if (uploadType === 'youtube' && youtubeUrl) {
+        if (!validateYoutubeUrl(youtubeUrl)) {
+          throw new Error('Invalid YouTube URL');
+        }
+        videoUrl = youtubeUrl;
+      }
 
       // Create video record
       const { error: dbError } = await supabase
@@ -55,7 +106,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
             user_id: user.id,
             title,
             description,
-            video_url: data.path
+            video_url: videoUrl
           }
         ]);
 
@@ -66,7 +117,7 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
       setTitle('');
       setDescription('');
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setUploading(false);
     }
@@ -89,65 +140,145 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
-            {file ? (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600 dark:text-gray-300">{file.name}</p>
-                <button
-                  type="button"
-                  onClick={() => setFile(null)}
-                  className="text-red-500 text-sm hover:text-red-600"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="cursor-pointer space-y-2"
-              >
-                <UploadIcon className="w-12 h-12 mx-auto text-gray-400" />
-                <p className="text-gray-600 dark:text-gray-300">Click to upload video</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Maximum file size: 50MB</p>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
+          <div className="flex space-x-4 mb-4">
+            <button
+              type="button"
+              onClick={() => {
+                setUploadType('file');
+                setYoutubeUrl('');
+              }}
+              className={`flex-1 py-2 px-4 rounded-lg ${
+                uploadType === 'file'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUploadType('youtube');
+                setFile(null);
+              }}
+              className={`flex-1 py-2 px-4 rounded-lg ${
+                uploadType === 'youtube'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              YouTube URL
+            </button>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
-              required
-            />
-          </div>
+          {uploadType === 'file' ? (
+            <>
+              <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center">
+                {file ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{file.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => setFile(null)}
+                      className="text-red-500 text-sm hover:text-red-600"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="cursor-pointer space-y-2"
+                  >
+                    <UploadIcon className="w-12 h-12 mx-auto text-gray-400" />
+                    <p className="text-gray-600 dark:text-gray-300">Click to upload video</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Maximum file size: 50MB</p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
-              rows={3}
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  rows={3}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  YouTube URL
+                </label>
+                <input
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={(e) => handleYoutubeUrlChange(e.target.value)}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  required={uploadType === 'youtube'}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                  rows={3}
+                />
+              </div>
+            </>
+          )}
 
           <button
             type="submit"
-            disabled={!file || uploading}
+            disabled={
+              uploading ||
+              (uploadType === 'file' && !file) ||
+              (uploadType === 'youtube' && !youtubeUrl)
+            }
             className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {uploading ? 'Uploading...' : 'Upload'}

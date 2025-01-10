@@ -14,19 +14,19 @@ export function VideoNavigation({ onPrevious, onNext, showPrevious, showNext }: 
       {showPrevious && (
         <button
           onClick={onPrevious}
-          className="w-12 h-12 bg-black/20 hover:bg-black/30 rounded-full flex items-center justify-center transition-colors"
+          className="w-12 h-12 bg-gray-200 hover:bg-gray-300 dark:bg-black/20 dark:hover:bg-black/30 rounded-full flex items-center justify-center transition-colors"
           aria-label="Previous video"
         >
-          <ChevronUp className="w-8 h-8 text-white" />
+          <ChevronUp className="w-8 h-8 text-gray-700 dark:text-white" />
         </button>
       )}
       {showNext && (
         <button
           onClick={onNext}
-          className="w-12 h-12 bg-black/20 hover:bg-black/30 rounded-full flex items-center justify-center transition-colors"
+          className="w-12 h-12 bg-gray-200 hover:bg-gray-300 dark:bg-black/20 dark:hover:bg-black/30 rounded-full flex items-center justify-center transition-colors"
           aria-label="Next video"
         >
-          <ChevronDown className="w-8 h-8 text-white" />
+          <ChevronDown className="w-8 h-8 text-gray-700 dark:text-white" />
         </button>
       )}
     </div>

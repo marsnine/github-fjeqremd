@@ -28,9 +28,8 @@ export function Sidebar() {
         <Timer className="w-8 h-8 text-blue-500" />
         <Briefcase className="w-4 h-4 text-blue-700 absolute -bottom-1 -right-1" />
       </div>
-      <div className="flex flex-col">
-        <span className="font-bold text-lg text-gray-900 dark:text-white leading-tight">3 Min</span>
-        <span className="text-xs text-gray-600 dark:text-gray-400 leading-tight">Pitch</span>
+      <div>
+        <span className="font-bold text-lg text-gray-900 dark:text-white">삼분홈즈</span>
       </div>
     </div>
   );
@@ -60,20 +59,29 @@ export function Sidebar() {
               </button>
               <button
                 onClick={handleLogout}
-                className="w-full rounded-full border-2 border-red-500 py-3 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-950 transition flex items-center justify-center space-x-2 md:block hidden"
+                className="w-full rounded-full border-2 border-red-500 py-3 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-950 transition flex items-center justify-center space-x-2"
               >
-                <LogOut className="w-5 h-5 inline-block" />
+                <LogOut className="w-5 h-5" />
                 <span>Logout</span>
               </button>
             </>
           ) : (
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="w-full rounded-full bg-blue-500 py-3 text-white font-bold hover:bg-blue-600 transition flex items-center justify-center space-x-2"
-            >
-              <Upload className="w-5 h-5" />
-              <span>Upload</span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="w-full rounded-full bg-blue-500 py-3 text-white font-bold hover:bg-blue-600 transition flex items-center justify-center space-x-2"
+              >
+                <User className="w-5 h-5" />
+                <span>Login</span>
+              </button>
+              <button
+                onClick={() => setIsUploadModalOpen(true)}
+                className="w-full rounded-full border-2 border-blue-500 py-3 text-blue-500 font-bold hover:bg-blue-50 dark:hover:bg-blue-950 transition flex items-center justify-center space-x-2"
+              >
+                <Upload className="w-5 h-5" />
+                <span>Upload</span>
+              </button>
+            </>
           )}
         </div>
       </div>

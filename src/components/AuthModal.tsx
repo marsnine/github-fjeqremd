@@ -48,31 +48,19 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         if (signUpError) throw signUpError;
 
         if (authData.user) {
-          // Check if profile already exists
-          const { data: existingProfile } = await supabase
+          // Update username in profile
+          const { error: updateError } = await supabase
             .from('profiles')
-            .select('id')
-            .eq('id', authData.user.id)
-            .single();
-
-          if (!existingProfile) {
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .insert([{ 
-                id: authData.user.id,
-                username,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }]);
-            
-            if (profileError) throw profileError;
-          }
+            .update({ username })
+            .eq('id', authData.user.id);
+          
+          if (updateError) throw updateError;
         }
       }
 
       onClose();
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }

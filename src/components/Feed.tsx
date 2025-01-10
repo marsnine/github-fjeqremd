@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { VideoNavigation } from './VideoNavigation';
+import { YouTubePlayer } from './YouTubePlayer';
+import { PlayerProvider, usePlayer } from '../context/PlayerContext';
 
 interface Video {
   id: string;
@@ -14,6 +16,10 @@ interface Video {
   profiles: {
     username: string;
   };
+}
+
+function isYouTubeUrl(url: string) {
+  return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
 function VideoPlayer({ video }: { video: Video }) {
@@ -76,95 +82,109 @@ function VideoPlayer({ video }: { video: Video }) {
     return num >= 1000 ? `${(num / 1000).toFixed(1)}K` : num;
   };
 
-  const videoUrl = supabase.storage
-    .from('videos')
-    .getPublicUrl(video.video_url).data.publicUrl;
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const isYouTube = isYouTubeUrl(video.video_url);
+  const videoUrl = isYouTube
+    ? video.video_url
+    : supabase.storage.from('videos').getPublicUrl(video.video_url).data.publicUrl;
 
   return (
-    <div className="relative h-screen snap-start bg-black flex items-center justify-center">
-      <div className="relative w-full h-full max-w-[calc(100vh*9/16)] mx-auto">
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          className="h-full w-full object-contain"
-          playsInline
-          muted={isMuted}
-          onClick={togglePlayPause}
-        />
-        
-        {!isPlaying && (
-          <div 
-            className="absolute inset-0 flex items-center justify-center cursor-pointer"
-            onClick={togglePlayPause}
-          >
-            <div className="bg-black/30 rounded-full p-4">
-              <Play className="w-12 h-12 text-white" />
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={toggleMute}
-          className="absolute bottom-4 left-4 z-10 bg-black/30 p-2 rounded-full"
-        >
-          {isMuted ? (
-            <VolumeX className="w-6 h-6 text-white" />
+    <div className="relative h-screen snap-start bg-white dark:bg-black flex items-center justify-center">
+      <div className="relative w-full h-full max-w-screen-xl mx-auto flex">
+        {/* Video Container */}
+        <div className="relative w-full md:w-[calc(100%-400px)] h-full">
+          {isYouTube ? (
+            <YouTubePlayer videoUrl={videoUrl} videoId={video.id} />
           ) : (
-            <Volume2 className="w-6 h-6 text-white" />
+            <div className="relative w-full h-full">
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                className="h-full w-full object-contain"
+                playsInline
+                muted={isMuted}
+                onClick={togglePlayPause}
+              />
+              {!isPlaying && (
+                <div 
+                  className="absolute inset-0 flex items-center justify-center cursor-pointer"
+                  onClick={togglePlayPause}
+                >
+                  <div className="bg-gray-500/30 dark:bg-black/30 rounded-full p-4">
+                    <Play className="w-12 h-12 text-gray-700 dark:text-white" />
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={toggleMute}
+                className="absolute bottom-4 left-4 z-10 bg-gray-500/30 dark:bg-black/30 p-2 rounded-full"
+              >
+                {isMuted ? (
+                  <VolumeX className="w-6 h-6 text-gray-700 dark:text-white" />
+                ) : (
+                  <Volume2 className="w-6 h-6 text-gray-700 dark:text-white" />
+                )}
+              </button>
+            </div>
           )}
-        </button>
-        
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-          <div className="flex items-center mb-2">
-            <span className="font-bold mr-2">{video.profiles.username}</span>
-            <span className="ml-2 text-sm opacity-80">{new Date(video.created_at).toLocaleDateString()}</span>
-          </div>
-          <p className="mb-2">{video.title}</p>
-          <p className="text-sm opacity-80">{video.description}</p>
         </div>
 
-        {/* Right side interaction buttons */}
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-4">
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 bg-gray-100 rounded-full mb-1 overflow-hidden">
-              <img
-                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${video.profiles.username}`}
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
+        {/* Info Section - Only visible on MD and larger screens */}
+        <div className="hidden md:flex flex-col w-[400px] bg-white dark:bg-black border-l border-gray-200 dark:border-gray-800">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <img
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${video.profiles.username}`}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">{video.profiles.username}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(video.created_at)}</p>
+              </div>
+              <button className="ml-auto bg-red-500 text-white px-4 py-2 rounded-full text-sm font-medium">
+                팔로우
+              </button>
             </div>
-            <button className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center -mt-3">
-              <Plus className="w-4 h-4 text-white" />
-            </button>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{video.title}</h2>
+            <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{video.description}</p>
           </div>
 
-          <button className="flex flex-col items-center space-y-1">
-            <div className="w-12 h-12 bg-black/20 rounded-full flex items-center justify-center">
-              <Heart className="w-6 h-6 text-white" />
+          {/* Stats */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <Heart className="w-6 h-6 text-gray-700 dark:text-white" />
+                <span className="text-gray-700 dark:text-white">{formatNumber(video.likes)}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <MessageCircle className="w-6 h-6 text-gray-700 dark:text-white" />
+                <span className="text-gray-700 dark:text-white">27</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Bookmark className="w-6 h-6 text-gray-700 dark:text-white" />
+                <span className="text-gray-700 dark:text-white">89</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Share2 className="w-6 h-6 text-gray-700 dark:text-white" />
+                <span className="text-gray-700 dark:text-white">61</span>
+              </div>
             </div>
-            <span className="text-white text-xs">{formatNumber(video.likes)}</span>
-          </button>
-
-          <button className="flex flex-col items-center space-y-1">
-            <div className="w-12 h-12 bg-black/20 rounded-full flex items-center justify-center">
-              <MessageCircle className="w-6 h-6 text-white" />
+            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>조회수 {formatNumber(video.views)}회</span>
             </div>
-            <span className="text-white text-xs">27</span>
-          </button>
-
-          <button className="flex flex-col items-center space-y-1">
-            <div className="w-12 h-12 bg-black/20 rounded-full flex items-center justify-center">
-              <Bookmark className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-white text-xs">89</span>
-          </button>
-
-          <button className="flex flex-col items-center space-y-1">
-            <div className="w-12 h-12 bg-black/20 rounded-full flex items-center justify-center">
-              <Share2 className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-white text-xs">61</span>
-          </button>
+          </div>
         </div>
       </div>
     </div>
