@@ -1,28 +1,30 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-
-type Theme = 'light' | 'dark';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface ThemeContextType {
-  theme: Theme;
+  theme: 'light' | 'dark';
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme') as Theme;
-      if (savedTheme) return savedTheme;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light';
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    // 로컬 스토리지에서 테마 설정을 가져옴
+    const savedTheme = localStorage.getItem('theme');
+    // 시스템 테마 설정 확인
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    return (savedTheme as 'light' | 'dark') || (prefersDark ? 'dark' : 'light');
   });
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
+    // 테마 변경 시 HTML class 업데이트
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    // 로컬 스토리지에 테마 설정 저장
     localStorage.setItem('theme', theme);
   }, [theme]);
 

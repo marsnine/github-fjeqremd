@@ -1,20 +1,21 @@
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
 
-interface LinkProps {
-  Icon: LucideIcon;
-  text: string;
-  path: string;
+export interface LinkProps {
+  href: string;
+  className?: string;
+  children: React.ReactNode;
 }
 
-export function Link({ Icon, text, path }: LinkProps) {
+export function Link({ href, className, children }: LinkProps) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // 실제 라우팅 구현 시 여기에 구현
+    console.log(`Navigate to: ${href}`);
+  };
+
   return (
-    <a 
-      href={path}
-      className="flex items-center space-x-4 p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white"
-    >
-      <Icon className="h-6 w-6" />
-      <span className="text-xl">{text}</span>
+    <a href={href} className={className} onClick={handleClick}>
+      {children}
     </a>
   );
 }

@@ -3,50 +3,45 @@ import { usePlayer } from '../context/PlayerContext';
 
 interface YouTubePlayerProps {
   videoUrl: string;
-  videoId: string;
 }
 
-export function YouTubePlayer({ videoUrl, videoId: id }: YouTubePlayerProps) {
-  const { currentPlayingId, setCurrentPlayingId } = usePlayer();
+export function YouTubePlayer({ videoUrl }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const getVideoId = (url: string) => {
-    const regExp = /^.*(youtu\.be\/|v\/|shorts\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
+    try {
+      const urlObj = new URL(url);
+      
+      // YouTube Shorts URL 처리
+      if (urlObj.pathname.includes('/shorts/')) {
+        const shortsId = urlObj.pathname.split('/shorts/')[1];
+        console.log('Shorts ID:', shortsId);
+        return shortsId;
+      }
+      
+      // 일반적인 YouTube URL 처리
+      if (urlObj.hostname.includes('youtu.be')) {
+        return urlObj.pathname.slice(1);
+      }
+      
+      const videoId = urlObj.searchParams.get('v');
+      console.log('Video ID from URL:', videoId);
+      return videoId;
+      
+    } catch (error) {
+      console.error('Error parsing YouTube URL:', url, error);
+      return null;
+    }
   };
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            if (!currentPlayingId || currentPlayingId === id) {
-              setCurrentPlayingId(id);
-            }
-          } else if (currentPlayingId === id) {
-            setCurrentPlayingId(null);
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
-
-    observer.observe(containerRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [id, currentPlayingId, setCurrentPlayingId]);
 
   const videoId = getVideoId(videoUrl);
   if (!videoId) {
+    console.error('Invalid YouTube URL:', videoUrl);
     return <div>Invalid YouTube URL</div>;
   }
 
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?playsinline=1&controls=1&modestbranding=1&rel=0&showinfo=0${currentPlayingId === id ? '&autoplay=1' : ''}`;
+  // 모든 동영상을 일반 플레이어로 재생
+  const embedUrl = `https://www.youtube.com/embed/${videoId}?playsinline=1&controls=1&modestbranding=1&rel=0&showinfo=0&enablejsapi=1&origin=${window.location.origin}`;
 
   return (
     <div className="relative w-full h-full" ref={containerRef}>
