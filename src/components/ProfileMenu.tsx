@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, Wallet, LayoutGrid, Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 interface ProfileMenuProps {
   onClose: () => void;
@@ -9,10 +10,29 @@ interface ProfileMenuProps {
 
 export function ProfileMenu({ onClose, onProfileClick }: ProfileMenuProps) {
   const { theme, toggleTheme } = useTheme();
+  const { signOut } = useAuth();
 
   const handleProfileClick = () => {
     onProfileClick();
     onClose();
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await signOut();
+      if (error) {
+        console.error('로그아웃 중 오류 발생:', error);
+        // TODO: 사용자에게 오류 메시지 표시 (예: 토스트 메시지)
+        return;
+      }
+      // 로그아웃 성공 시 메뉴 닫기
+      onClose();
+      // 로그아웃 후 홈페이지로 리다이렉트
+      window.location.href = '/';
+    } catch (error) {
+      console.error('로그아웃 중 예기치 않은 오류 발생:', error);
+      // TODO: 사용자에게 오류 메시지 표시 (예: 토스트 메시지)
+    }
   };
 
   return (
@@ -70,7 +90,7 @@ export function ProfileMenu({ onClose, onProfileClick }: ProfileMenuProps) {
           <hr className="my-1 border-gray-200 dark:border-gray-700" />
 
           <button
-            onClick={onClose}
+            onClick={handleLogout}
             className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
           >
             <LogOut className="w-4 h-4" />
