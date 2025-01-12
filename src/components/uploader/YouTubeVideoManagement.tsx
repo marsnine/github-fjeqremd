@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, Edit2, Trash2, Plus } from 'lucide-react';
-import { AddVideoToLibraryModal } from './AddVideoToLibraryModal';
+import { ExternalLink, Edit2, Trash2, Plus, Loader } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { AddVideoToLibraryModal } from './AddVideoToLibraryModal';
 
 interface ExternalVideo {
   id: string;
@@ -19,22 +19,30 @@ interface ExternalPlaylist {
   list_name: string;
 }
 
+const ITEMS_PER_PAGE = 50;
+
 export function YouTubeVideoManagement() {
   const [videos, setVideos] = useState<ExternalVideo[]>([]);
   const [playlists, setPlaylists] = useState<ExternalPlaylist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<ExternalVideo | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const { user } = useAuth();
 
   // 재생목록 목록 가져오기
   const fetchPlaylists = async () => {
     try {
+      if (!user) throw new Error('로그인이 필요합니다');
+
       const { data, error } = await supabase
         .from('external_playlists')
         .select('id, list_name')
+        .eq('user_id', user.id)
         .order('list_name');
 
       if (error) throw error;
@@ -50,26 +58,49 @@ export function YouTubeVideoManagement() {
   };
 
   // 선택된 재생목록의 동영상 목록 가져오기
-  const fetchVideos = async () => {
+  const fetchVideos = async (isLoadingMore = false) => {
     if (!selectedPlaylistId) return;
 
     try {
-      setLoading(true);
+      if (isLoadingMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setPage(0);
+        setVideos([]);
+        setHasMore(true);
+      }
+
       const { data, error } = await supabase
         .from('external_videos')
         .select('*')
         .eq('playlist_id', selectedPlaylistId)
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1)
         .order('origin_update', { ascending: false });
 
       if (error) throw error;
 
-      setVideos(data);
+      if (isLoadingMore) {
+        setVideos(prev => [...prev, ...data]);
+      } else {
+        setVideos(data);
+      }
+
+      // 가져온 데이터가 ITEMS_PER_PAGE보다 적으면 더 이상 데이터가 없음
+      setHasMore(data.length === ITEMS_PER_PAGE);
     } catch (error) {
       console.error('동영상 목록 조회 중 오류:', error);
       setError('동영상 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  // 다음 페이지 로드
+  const loadMore = async () => {
+    setPage(prev => prev + 1);
+    await fetchVideos(true);
   };
 
   // 동영상 삭제
@@ -86,7 +117,7 @@ export function YouTubeVideoManagement() {
 
       if (error) throw error;
 
-      fetchVideos();
+      setVideos(prev => prev.filter(video => video.id !== videoId));
     } catch (error) {
       console.error('동영상 삭제 중 오류:', error);
       alert('동영상 삭제에 실패했습니다.');
@@ -214,6 +245,26 @@ export function YouTubeVideoManagement() {
             ))}
           </tbody>
         </table>
+
+        {/* 계속 표시 버튼 */}
+        {hasMore && (
+          <div className="flex justify-center py-4">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-4 py-2 text-sm text-white bg-blue-500 hover:bg-blue-600 rounded-md disabled:opacity-50 flex items-center space-x-2"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>로딩 중...</span>
+                </>
+              ) : (
+                <span>계속 표시</span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {showAddModal && selectedVideo && (
