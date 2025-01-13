@@ -22,6 +22,12 @@ interface ExistingVideo {
   subtitle_text: string | null;
 }
 
+interface SubtitleItem {
+  text: string;
+  start: number;
+  duration: number;
+}
+
 export function AddVideoToLibraryModal({ videoLink, onClose, onSave }: AddVideoToLibraryModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +37,41 @@ export function AddVideoToLibraryModal({ videoLink, onClose, onSave }: AddVideoT
   const [videoInfo, setVideoInfo] = useState<VideoInfo>({
     title: '',
     description: '',
-    subtitle_text: ''
+    subtitle_text: '',
   });
 
   // 비디오 ID 추출
   const extractVideoId = (url: string): string | null => {
     const match = url.match(/[?&]v=([^&]+)/);
     return match ? match[1] : null;
+  };
+
+  // 자막 가져오기
+  const fetchTranscript = async (videoUrl: string) => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      const response = await fetch('http://localhost:3001/transcripts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ videoUrl }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '자막을 가져오는데 실패했습니다.');
+      }
+
+      const data = await response.json();
+      setVideoInfo((prev) => ({ ...prev, subtitle_text: JSON.stringify(data) }));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '자막을 가져오는 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // YouTube API로 비디오 정보 가져오기
@@ -69,8 +103,11 @@ export function AddVideoToLibraryModal({ videoLink, onClose, onSave }: AddVideoT
       setVideoInfo({
         title: snippet.title,
         description: snippet.description,
-        subtitle_text: videoInfo.subtitle_text // 기존 자막 유지
+        subtitle_text: '',
       });
+
+      // 자막 가져오기
+      await fetchTranscript(videoLink);
     } catch (error) {
       setError(error instanceof Error ? error.message : '비디오 정보를 가져오는데 실패했습니다');
     } finally {
@@ -167,9 +204,24 @@ export function AddVideoToLibraryModal({ videoLink, onClose, onSave }: AddVideoT
     }
   };
 
+  // 자막 데이터 파싱
+  const parseSubtitles = (subtitleText: string) => {
+    try {
+      const subtitles = JSON.parse(subtitleText) as SubtitleItem[];
+      return subtitles.map((sub, index) => (
+        <div key={index} className="mb-2">
+          <span className="text-sm text-gray-500">{sub.start.toFixed(2)}s - </span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">{sub.text}</span>
+        </div>
+      ));
+    } catch (e) {
+      return <div className="text-sm text-gray-500">자막을 파싱할 수 없습니다.</div>;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-6xl">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">
             비디오 추가
@@ -206,6 +258,39 @@ export function AddVideoToLibraryModal({ videoLink, onClose, onSave }: AddVideoT
             </button>
           </div>
 
+          <div className="flex gap-6">
+            {/* YouTube 비디오 표시 */}
+            {videoLink && (
+              <div className="w-1/2">
+                <div className="aspect-video w-full">
+                  <iframe
+                    className="w-full h-full rounded-lg"
+                    src={`https://www.youtube.com/embed/${extractVideoId(videoLink)}`}
+                    title="YouTube video player"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 자막 표시 */}
+            <div className="w-1/2">
+              <div className="aspect-video w-full relative">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 absolute top-0 left-0">
+                  자막
+                </label>
+                <div className="absolute top-7 left-0 right-0 bottom-0 px-3 py-2 border border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 overflow-y-auto">
+                  {videoInfo.subtitle_text ? (
+                    parseSubtitles(videoInfo.subtitle_text)
+                  ) : (
+                    <div className="text-sm text-gray-500">자막이 없습니다.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               제목
@@ -225,18 +310,6 @@ export function AddVideoToLibraryModal({ videoLink, onClose, onSave }: AddVideoT
             <textarea
               value={videoInfo.description}
               onChange={(e) => setVideoInfo({ ...videoInfo, description: e.target.value })}
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              자막
-            </label>
-            <textarea
-              value={videoInfo.subtitle_text || ''}
-              onChange={(e) => setVideoInfo({ ...videoInfo, subtitle_text: e.target.value })}
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
